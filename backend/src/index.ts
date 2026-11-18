@@ -12,6 +12,7 @@ import orderRoutes from './routes/order.route';
 import dashboardRoutes from './routes/dashboard.route';
 
 const PORT = process.env.PORT || 5000;
+const isVercel = process.env.VERCEL === '1';
 const app = express();
 
 // Di belakang reverse proxy (Nginx/Cloudflare) agar req.protocol = https
@@ -35,7 +36,13 @@ app.use('/api/dashboard', dashboardRoutes);
 
 // API Docs (Swagger) — di production dilindungi Basic Auth & bisa dimatikan via env
 if (isDocsEnabled()) {
-  const isProduction = process.env.NODE_ENV === 'production';
+  // Vercel tidak mengirim aset statis dari node_modules -> pakai CDN.
+  // ponytail: fallback ke aset lokal jika pindah ke server non-serverless.
+  const CSS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.1.0/swagger-ui.min.css';
+  const JS_URLS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.1.0/swagger-ui-bundle.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.1.0/swagger-ui-standalone-preset.js',
+  ];
   app.get('/api-docs.json', docsGuard, (_req, res) => {
     res.json(swaggerSpec);
   });
@@ -45,9 +52,11 @@ if (isDocsEnabled()) {
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
       customSiteTitle: 'KompasDesa API Docs',
+      customCssUrl: CSS_URL,
+      customJs: JS_URLS,
       swaggerOptions: {
         // Jangan simpan JWT di localStorage browser saat production
-        persistAuthorization: !isProduction,
+        persistAuthorization: !isVercel && process.env.NODE_ENV !== 'production',
         displayRequestDuration: true,
       },
     })
@@ -60,6 +69,10 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Endpoint tidak ditemukan' });
 });
 
-app.listen(PORT, () => {
-  console.log(`KompasDesa API listening on port ${PORT}`);
-});
+export default app;
+
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`KompasDesa API listening on port ${PORT}`);
+  });
+}

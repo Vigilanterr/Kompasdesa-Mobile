@@ -4,8 +4,11 @@
  * di-deploy / di-build ke dist, apa pun working directory-nya.
  */
 
-const isProduction = process.env.NODE_ENV === 'production';
-const PRODUCTION_DOMAIN = 'https://backend.kompasdesa.site';
+const isVercel = process.env.VERCEL === '1';
+const isProduction = process.env.NODE_ENV === 'production' || isVercel;
+const PRODUCTION_DOMAIN = isVercel
+  ? 'https://kompasdesa-mobile.vercel.app'
+  : 'https://backend.kompasdesa.site';
 // Di production pakai API_URL (jika diisi), selain itu domain default di atas.
 const productionUrl = (
   isProduction && process.env.API_URL ? process.env.API_URL : PRODUCTION_DOMAIN

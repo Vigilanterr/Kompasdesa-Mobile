@@ -10,11 +10,6 @@ const safeEqual = (a: string, b: string) => {
   return timingSafeEqual(ha, hb);
 };
 
-/**
- * Swagger aktif jika:
- *  - development: selalu aktif
- *  - production : hanya jika SWAGGER_ENABLED=true DAN SWAGGER_USERNAME + SWAGGER_PASSWORD diisi
- */
 export const isDocsEnabled = () => {
   if (!isProduction) return true;
   return (
