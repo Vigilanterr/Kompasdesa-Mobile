@@ -1,0 +1,14 @@
+# Dependencies
+**/node_modules/
+.env
+**/.env
+
+# Build outputs
+dist/
+
+# IDE / Editor
+.DS_Store
+Thumbs.db
+
+# Local documents (jangan commit ke repo)
+Software Requirement Specification.docx

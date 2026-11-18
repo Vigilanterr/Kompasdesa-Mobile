@@ -1,0 +1,11 @@
+-- 010_create_order_items
+CREATE TABLE IF NOT EXISTS order_items (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+  nama_produk VARCHAR(150) NOT NULL,
+  jumlah NUMERIC(12,3) NOT NULL,
+  harga_satuan NUMERIC(12,2) NOT NULL,
+  subtotal NUMERIC(12,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);

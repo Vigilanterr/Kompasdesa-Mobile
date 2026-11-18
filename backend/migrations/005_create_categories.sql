@@ -1,0 +1,8 @@
+-- 005_create_categories
+CREATE TABLE IF NOT EXISTS categories (
+  id BIGSERIAL PRIMARY KEY,
+  nama_kategori VARCHAR(100) UNIQUE NOT NULL,
+  deskripsi TEXT,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
