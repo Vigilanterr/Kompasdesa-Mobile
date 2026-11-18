@@ -1,20 +1,47 @@
-import { error } from "node:console";
 import pool from "../config/db";
-import { Request, response } from "express";
+import { Request, Response } from "express";
+import bcrypt from 'bcrypt';
+import jwt from "jsonwebtoken";
+import { loginSchema } from "../validations/auth.validations";
 
- export const login = async (req: Request, res: Response) => {
-    const [email, password] = req.body;
-    if (!email || !password) {
-        res.status(400).json({error: "wajib di isi"})
-
-    const 
-
+export const login = async (req: Request, res: Response) => {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+        res.status(400).json({ error: "Input tidak valid", detail: parsed.error.issues });
+        return;
     }
+    const { email, password } = parsed.data;
 
     try {
-        
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0]
+
+    if (!user) {
+        res.status(401).json({error: "Email atau password salah"})
+        return;
+    }
+
+    const validateUser = await bcrypt.compare(password, user.password)
+    if (!validateUser) {
+        res.status(401).json({error : "Email atau password salah"})
+        return;
+    }
+
+    const token = jwt.sign(
+        {id : user.id, email : user.email, role : user.role},
+        process.env.JWT_SECRET as string,
+        {expiresIn : '7d'}
+    )
+
+    res.status(200).json({
+        message : "Login berhasil",
+        token,
+        user : {id : user.id, email : user.email, role : user.role}
+    });
+
     } catch (error) {
-        
+        console.error("Error saat login:", error);
+        res.status(500).json({error : "Terjadi kesalahan pada server"})
     }
 
  }
