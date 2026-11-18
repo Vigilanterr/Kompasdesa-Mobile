@@ -1,30 +1,39 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mobile/main.dart';
+import 'package:mobile/screens/auth_screen.dart';
+import 'package:mobile/models/models.dart';
+import 'package:mobile/config/theme.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('formatRupiah memberi pemisah ribuan', () {
+    expect(formatRupiah(15000), 'Rp 15.000');
+    expect(formatRupiah(1250000), 'Rp 1.250.000');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('Product membaca JSON backend dan status label', () {
+    final product = Product.fromJson({
+      'id': 7,
+      'farmer_id': 2,
+      'category_id': 3,
+      'nama_produk': 'Bayam',
+      'deskripsi': 'Bayam segar',
+      'harga': '5000.00',
+      'stok': '12',
+      'satuan': 'ikat',
+      'foto_produk': '',
+      'status': 'active',
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(product.id, 7);
+    expect(product.harga, 5000);
+    expect(product.stok, 12);
+    expect(product.statusLabel, 'Tersedia');
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('AuthScreen menampilkan form login', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AuthScreen()));
+    expect(find.text('Masuk'), findsWidgets);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
   });
 }
