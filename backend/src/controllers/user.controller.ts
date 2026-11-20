@@ -2,11 +2,12 @@ import { Response } from 'express';
 import pool from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { updateUserSchema } from '../validations/user.validations';
+import { uploadImage } from '../config/cloudinary';
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, nama, email, no_hp, alamat, role, created_at FROM users WHERE id = $1',
+      'SELECT id, nama, email, no_hp, alamat, role, profile_image, created_at FROM users WHERE id = $1',
       [req.user!.id]
     );
 
@@ -25,41 +26,29 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'Input tidak valid', detail: parsed.error.issues });
+    res.status(400).json({ error: 'Input tidak valid' });
     return;
   }
 
-  const { nama, no_hp, alamat } = parsed.data;
+  const { nama, no_hp, alamat, profile_image } = parsed.data;
+
+  // Cek apakah ada data yang diupdate
+  if (!nama && no_hp === undefined && alamat === undefined && profile_image === undefined) {
+    res.status(400).json({ error: 'Tidak ada data yang diupdate' });
+    return;
+  }
 
   try {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-
-    if (nama) {
-      fields.push(`nama = $${paramIndex++}`);
-      values.push(nama);
-    }
-    if (no_hp !== undefined) {
-      fields.push(`no_hp = $${paramIndex++}`);
-      values.push(no_hp);
-    }
-    if (alamat !== undefined) {
-      fields.push(`alamat = $${paramIndex++}`);
-      values.push(alamat);
-    }
-
-    if (fields.length === 0) {
-      res.status(400).json({ error: 'Tidak ada data yang diupdate' });
-      return;
-    }
-
-    fields.push(`updated_at = NOW()`);
-    values.push(req.user!.id);
-
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, nama, email, no_hp, alamat, role`,
-      values
+      `UPDATE users
+       SET nama = COALESCE($1, nama),
+           no_hp = COALESCE($2, no_hp),
+           alamat = COALESCE($3, alamat),
+           profile_image = COALESCE($4, profile_image),
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING id, nama, email, no_hp, alamat, role, profile_image`,
+      [nama || null, no_hp ?? null, alamat ?? null, profile_image ?? null, req.user!.id]
     );
 
     res.status(200).json({
@@ -69,5 +58,40 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+};
+
+// POST /api/users/profile/photo — upload foto profil baru (base64)
+export const uploadProfilePhoto = async (req: AuthRequest, res: Response) => {
+  const { image } = req.body as any;
+
+  if (!image || !image.startsWith('data:image')) {
+    res.status(400).json({ error: 'Foto dalam format base64 wajib diunggah' });
+    return;
+  }
+
+  try {
+    // Upload ke Cloudinary dan dapatkan URL publik
+    const imageUrl = await uploadImage(image, 'kompasdesa/users');
+
+    // Simpan URL ke database
+    const result = await pool.query(
+      "UPDATE users SET profile_image = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nama, email, no_hp, alamat, role, profile_image",
+      [imageUrl, req.user!.id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'User tidak ditemukan' });
+      return;
+    }
+
+    res.status(200).json({
+      message: 'Foto profil berhasil diupload',
+      user: result.rows[0],
+      imageUrl: imageUrl,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Gagal mengupload foto ke Cloudinary' });
   }
 };

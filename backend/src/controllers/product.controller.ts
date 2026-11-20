@@ -6,11 +6,12 @@ import { productIdSchema, productSchema } from "../validations/product.validatio
 export const createProduct = async (req: AuthRequest, res: Response) => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Input tidak valid", detail: parsed.error.issues });
+    res.status(400).json({ error: "Input tidak valid" });
     return;
   }
 
-  const { category_id, nama_produk, deskripsi, harga, stok, satuan, foto_produk, status = "Ready" } = parsed.data;
+  // Default status 'ready' — stok > 0 berarti tersedia
+  const { category_id, nama_produk, deskripsi, harga, stok, satuan, foto_produk, status = "ready" } = parsed.data;
 
   try {
     const result = await pool.query(
@@ -64,27 +65,51 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     return;
   }
 
+  const fields = Object.keys(bodyParsed.data);
+  if (fields.length === 0) {
+    res.status(400).json({ error: "Tidak ada field yang diupdate" });
+    return;
+  }
+
   try {
     const existing = await pool.query("SELECT * FROM products WHERE id = $1", [idParsed.data.id]);
     if (existing.rows.length === 0) {
       res.status(404).json({ error: "Produk tidak ditemukan" });
       return;
     }
-    // if (existing.rows[0].farmer_id !== req.user!.id) {
-    //   res.status(403).json({ error: "Bukan produk milik Anda" });
-    //   return;
-    // }
 
-    const fields = Object.keys(bodyParsed.data);
-    if (fields.length === 0) {
-      res.status(400).json({ error: "Tidak ada field yang diupdate" });
-      return;
+    let newFoto = existing.rows[0].foto_produk;
+    const setClauses: string[] = [];
+    const values: any[] = [idParsed.data.id];
+
+    for (const f of fields) {
+      if (f === 'foto_produk') {
+        // Jika diganti gambar baru, pakai value baru; jika tidak, pakai yang lama
+        newFoto = bodyParsed.data[f] as string || newFoto;
+      } else if (f === 'status') {
+        // Validasi lagi nilai status sebelum masuk query
+        const s = bodyParsed.data[f] as string;
+        if (s !== 'ready' && s !== 'sold_out') {
+          res.status(400).json({ error: "Status harus 'ready' atau 'sold_out'" });
+          return;
+        }
+        setClauses.push(`${f} = $${values.length + 1}`);
+        values.push(s);
+      } else {
+        setClauses.push(`${f} = $${values.length + 1}`);
+        values.push(bodyParsed.data[f as keyof typeof bodyParsed.data]);
+      }
     }
 
-    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(", ");
-    const values = [idParsed.data.id, ...fields.map((f) => bodyParsed.data[f as keyof typeof bodyParsed.data])];
+    // Auto-status berdasarkan stok saat update manual
+    if (fields.includes('stok')) {
+      const newStok = Number(bodyParsed.data.stok);
+      setClauses.push(`status = CASE WHEN $${values.length + 1} > 0 THEN 'ready' ELSE 'sold_out' END`);
+      values.push(newStok);
+    }
+
     const result = await pool.query(
-      `UPDATE products SET ${setClause}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE products SET ${setClauses.join(", ")}, updated_at = NOW() WHERE id = $1 RETURNING *`,
       values
     );
     res.status(200).json({ message: "Produk berhasil diupdate", product: result.rows[0] });

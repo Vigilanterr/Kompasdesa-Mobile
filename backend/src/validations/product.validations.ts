@@ -8,11 +8,9 @@ export const productSchema = z.object({
   stok: z.coerce.number().int().nonnegative(),
   satuan: z.string().min(1).max(30),
   foto_produk: z.string().min(1).max(255),
-  status: z.enum(['Ready', 'sold out']).optional(),
+  status: z.enum(['ready', 'sold_out']).optional(),
 });
 
 export const productIdSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
-
-export const productStatusSchema = z.enum(['Ready', 'sold out']);

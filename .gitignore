@@ -12,3 +12,5 @@ Thumbs.db
 
 # Local documents (jangan commit ke repo)
 Software Requirement Specification.docx
+KompasDesa_QA_Blackbox_Testing.xlsx
+backend/server.log
