@@ -37,7 +37,7 @@ export const getCategoryById = async (req: Request, res: Response) => {
 export const createCategory = async (req: Request, res: Response) => {
   const parsed = createCategorySchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'Input tidak valid', detail: parsed.error.issues });
+    res.status(400).json({ error: 'Input tidak valid' });
     return;
   }
 
@@ -45,7 +45,6 @@ export const createCategory = async (req: Request, res: Response) => {
 
   try {
     const existing = await pool.query('SELECT id FROM categories WHERE nama_kategori = $1', [nama_kategori]);
-
     if (existing.rows.length > 0) {
       res.status(400).json({ error: 'Kategori sudah ada' });
       return;
@@ -79,30 +78,33 @@ export const updateCategory = async (req: Request, res: Response) => {
 
   try {
     const existing = await pool.query('SELECT * FROM categories WHERE id = $1', [idParsed.data.id]);
-
     if (existing.rows.length === 0) {
       res.status(404).json({ error: 'Kategori tidak ditemukan' });
       return;
     }
 
+    // Cek duplikasi nama jika ada perubahan nama
     if (nama_kategori) {
-      const checkDuplicate = await pool.query('SELECT id FROM categories WHERE nama_kategori = $1 AND id != $2', [
-        nama_kategori,
-        idParsed.data.id,
-      ]);
-
-      if (checkDuplicate.rows.length > 0) {
+      const checkDup = await pool.query(
+        'SELECT id FROM categories WHERE nama_kategori = $1 AND id != $2',
+        [nama_kategori, idParsed.data.id]
+      );
+      if (checkDup.rows.length > 0) {
         res.status(400).json({ error: 'Nama kategori sudah digunakan' });
         return;
       }
     }
+
+    // Jika field tidak diisi, pakai nilai lama dari database
+    const newNama = nama_kategori || existing.rows[0].nama_kategori;
+    const newDeskripsi = deskripsi !== undefined ? deskripsi : existing.rows[0].deskripsi;
 
     const result = await pool.query(
       `UPDATE categories
        SET nama_kategori = $1, deskripsi = $2, updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
-      [nama_kategori || existing.rows[0].nama_kategori, deskripsi !== undefined ? deskripsi : existing.rows[0].deskripsi, idParsed.data.id]
+      [newNama, newDeskripsi, idParsed.data.id]
     );
 
     res.status(200).json({
@@ -124,21 +126,22 @@ export const deleteCategory = async (req: Request, res: Response) => {
 
   try {
     const existing = await pool.query('SELECT * FROM categories WHERE id = $1', [parsed.data.id]);
-
     if (existing.rows.length === 0) {
       res.status(404).json({ error: 'Kategori tidak ditemukan' });
       return;
     }
 
-    const hasProducts = await pool.query('SELECT COUNT(*)::int as count FROM products WHERE category_id = $1', [parsed.data.id]);
-
+    // Cek apakah kategori masih memiliki produk
+    const hasProducts = await pool.query(
+      'SELECT COUNT(*)::int as count FROM products WHERE category_id = $1',
+      [parsed.data.id]
+    );
     if (hasProducts.rows[0].count > 0) {
       res.status(400).json({ error: 'Tidak bisa menghapus kategori yang memiliki produk' });
       return;
     }
 
     await pool.query('DELETE FROM categories WHERE id = $1', [parsed.data.id]);
-
     res.status(200).json({ message: 'Kategori berhasil dihapus' });
   } catch (error) {
     console.error(error);
